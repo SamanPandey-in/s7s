@@ -76,6 +76,20 @@ func (s *PodStore) List(ns string) []api.Pod {
 	return items
 }
 
+func (s *PodStore) Replace(p *api.Pod) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	k := key(p.Metadata.Namespace, p.Metadata.Name)
+
+	if _, ok := s.pods[k]; !ok {
+		return ErrNotFound
+	}
+
+	s.pods[k] = *p
+	return nil
+}
+
 func (s *PodStore) Delete(ns, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

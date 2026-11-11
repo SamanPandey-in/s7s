@@ -1,0 +1,18 @@
+
+{
+  "metadata": {
+    "name": "nginx",
+    "labels": {
+      "app": "web"
+    }
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "nginx",
+        "image": "nginx:1.27",
+        "ports": [80]
+      }
+    ]
+  }
+}
