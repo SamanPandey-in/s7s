@@ -42,17 +42,8 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) createPod(w http.ResponseWriter, r *http.Request) {
 	ns := r.PathValue("ns")
 
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-
-	var pod api.Pod
-	if err := dec.Decode(&pod); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	if err := validatePod(&pod); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	pod, ok := decodePod(w, r)
+	if !ok {
 		return
 	}
 
@@ -97,17 +88,8 @@ func (s *Server) updatePod(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
 	// step 1: decode the body-same rules as create
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-
-	var pod api.Pod
-	if err := dec.Decode(&pod); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	if err := validatePod(&pod); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	pod, ok := decodePod(w, r)
+	if !ok {
 		return
 	}
 
@@ -168,6 +150,23 @@ func validatePod(p *api.Pod) error {
 	}
 
 	return nil
+}
+
+func decodePod(w http.ResponseWriter, r *http.Request) (api.Pod, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	var pod api.Pod
+	if err := dec.Decode(&pod); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return pod, false
+	}
+	if err := validatePod(&pod); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return pod, false
+	}
+	return pod, true
 }
 
 func newUID() string {
