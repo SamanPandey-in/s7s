@@ -76,7 +76,7 @@ func (s *PodStore) List(ns string) []api.Pod {
 	return items
 }
 
-func (s *PodStore) Replace(p *api.Pod) error {
+func (s *PodStore) Update(p *api.Pod) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

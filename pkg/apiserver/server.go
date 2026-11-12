@@ -33,7 +33,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST "+base, s.createPod)
 	mux.HandleFunc("GET "+base, s.listPods)
 	mux.HandleFunc("GET "+base+"/{name}", s.getPod)
-	mux.HandleFunc("PUT "+base+"/{name}", s.replacePod)
+	mux.HandleFunc("PUT "+base+"/{name}", s.updatePod)
 	mux.HandleFunc("DELETE "+base+"/{name}", s.deletePod)
 
 	return logRequests(mux)
@@ -92,7 +92,7 @@ func (s *Server) getPod(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pod)
 }
 
-func (s *Server) replacePod(w http.ResponseWriter, r *http.Request) {
+func (s *Server) updatePod(w http.ResponseWriter, r *http.Request) {
 	ns := r.PathValue("ns")
 	name := r.PathValue("name")
 
@@ -116,7 +116,6 @@ func (s *Server) replacePod(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "metadata.name must match the URL")
 		return
 	}
-	pod.Metadata.Namespace = ns
 
 	// step 3: Load the old pod -> all its server owned fields must survive the replacePod
 	old, err := s.pods.Get(ns, name)
@@ -128,14 +127,16 @@ func (s *Server) replacePod(w http.ResponseWriter, r *http.Request) {
 	// step 4: keep Unchanged: UID + creationTimestamp (identity of this object)
 	pod.Metadata.UID = old.Metadata.UID
 	pod.Metadata.CreationTimestamp = old.Metadata.CreationTimestamp
+	pod.Status = old.Status
+	pod.Spec.NodeName = old.Spec.NodeName
 
 	// step 5: reset status: we replaced the desired state, but the actual/observed state is still stale
 	pod.Kind = "Pod"
 	pod.APIVersion = "v1"
-	pod.Status = api.PodStatus{Phase: api.PodPending}
+	pod.Metadata.Namespace = ns
 
 	// step 6: writing it back
-	if err := s.pods.Replace(&pod); err != nil {
+	if err := s.pods.Update(&pod); err != nil {
 		writeStoreError(w, err)
 		return
 	}
