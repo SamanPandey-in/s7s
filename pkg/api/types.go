@@ -19,7 +19,7 @@ type ObjectMeta struct {
 
 type Container struct {
 	Name  string `json:"name"`
-	Image string `json"image"`
+	Image string `json:"image"`
 	Ports []int  `json:"ports,omitempty"`
 }
 
