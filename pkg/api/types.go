@@ -13,6 +13,7 @@ type ObjectMeta struct {
 	Name              string            `json:"name"`
 	Namespace         string            `json:"namespace"`
 	UID               string            `json:"uid"`
+	ResourceVersion   string            `json:"resourceVersion,omitempty"`
 	Labels            map[string]string `json:"labels,omitempty"` // in kubernetes, Labels is the optinal metaData. there is no reason to serialize an empty label map when the object doesnt has labels
 	CreationTimestamp time.Time         `json:"creationTimestamp"`
 }
@@ -56,3 +57,17 @@ type PodList struct {
 }
 
 // Embeddig typemeta w/o a field name makes its json fields appeaar at the top level
+
+type EventType string
+
+const (
+	EventAdded EventType = "ADDED"
+	EventModified EventType = "MODIFIED"
+	EventDeleted EventType = "DELETED"
+)
+
+// PodEvent is one line of the watch stream
+type PodEvent struct {
+	Type EventType `json:"type"`
+	Object Pod `json:"object"`
+}
