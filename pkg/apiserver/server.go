@@ -63,13 +63,39 @@ func (s *Server) createPod(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, pod)
 }
 
+// listPods now branches on ?watch=true
 func (s *Server) listPods(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("watch") == "true" {
+		s.watchPods(w, r)
+		return
+	}
+
 	list := api.PodList{
 		TypeMeta: api.TypeMeta{Kind: "PodList", APIVersion: "v1"},
 		Items:    s.pods.List(r.PathValue("ns")),
 	}
 
 	writeJSON(w, http.StatusOK, list)
+}
+
+func (s *Server) watchPods(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	events := s.pods.Watch(r.Context(), r.PathValue("ns"))
+	enc := json.NewEncoder(w) // Encode adds a newline after each value
+	for ev := range events {
+		if err := enc.Encode(ev); err != nil {
+			return
+		}
+		flusher.Flush()
+	}
 }
 
 func (s *Server) getPod(w http.ResponseWriter, r *http.Request) {
@@ -190,6 +216,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, store.ErrAlreadyExists):
+		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, store.ErrConflict):
 		writeError(w, http.StatusConflict, err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal error")

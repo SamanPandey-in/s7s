@@ -30,9 +30,9 @@ type PodStore struct {
 	mu       sync.RWMutex
 	pods     map[string]api.Pod // key: namespace/name
 	rev      uint64             // global revision, bumped on every write
-	watchers map[int]*watcher
-	nextID   int
-	path     string // state file; "" means in-memory only
+	watchers map[int]*watcher   // registered clients listening for changes
+	nextID   int                // assigns watcher IDs
+	path     string             // state file; "" means in-memory only
 
 	// GO: map[KEY_TYPE]VALUE_TYPE
 	// why use namespace/name??

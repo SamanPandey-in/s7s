@@ -17,9 +17,15 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address")
+
+	dataFile := flag.String("data", "state,json", "state file (empty = in-memory only)")
 	flag.Parse()
 
-	srv := apiserver.New(store.NewPodStore())
+	pods, err := store.Open(*dataFile)
+	if err != nil {
+		log.Fatalf("open store: %v", err)
+	}
+	srv := apiserver.New(pods)
 	httpSrv := &http.Server{
 		Addr:              *addr,
 		Handler:           srv.Handler(),

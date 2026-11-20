@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"text/tabwriter"
 	"time"
 
@@ -147,7 +149,7 @@ func runApply(args []string) error {
 	c := client.New(*server)
 
 	// check whether the Pod already exists
-	_, err = c.GetPod(*ns, pod.Metadata.Name) // if pod exists, err == nil
+	existing, err := c.GetPod(*ns, pod.Metadata.Name) // if pod exists, err == nil
 
 	// decide bw create and update
 	switch {
@@ -159,6 +161,7 @@ func runApply(args []string) error {
 	case err != nil:
 		return err
 	default:
+		pod.Metadata.ResourceVersion = existing.Metadata.ResourceVersion
 		if _, err := c.UpdatePod(*ns, &pod); err != nil {
 			return err
 		}
@@ -187,9 +190,14 @@ func runApply(args []string) error {
 
 func runGet(args []string) error {
 	fs, ns, server := newFlagSet("get")
+
+	watch := fs.Bool("w", false, "watch for changes")
 	pos := parse(fs, args)
 	if len(pos) < 1 || !isPod(pos[0]) {
-		return errors.New("usage: kubectl get pods [NAME]")
+		return errors.New("usage: kubectl get pods [NAME] [-w]")
+	}
+	if *watch {
+		return watchPods(*server, *ns)
 	}
 	c := client.New(*server)
 
@@ -253,4 +261,27 @@ func age(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dh", int(d.Hours()))
 	}
+}
+
+func watchPods(server, ns string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	events, err := client.New(server).WatchPods(ctx, ns)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%-9s %-20s %-10s %-10s %s\n", "EVENT", "NAME", "STATUS", "NODE", "RV")
+	for ev := range events {
+		p := ev.Object
+
+		node := p.Spec.NodeName
+		if node == "" {
+			node = "<none>"
+		}
+		fmt.Printf("%-9s %-20s %-10s %-10s %s\n", ev.Type, p.Metadata.Name, p.Status.Phase, node, p.Metadata.ResourceVersion)
+	}
+	fmt.Fprintln(os.Stderr, "watch closed")
+	return nil
 }
